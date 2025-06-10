@@ -1,4 +1,3 @@
-Aquí tienes una versión profesional y llamativa del `README.md` para tu repositorio de GitHub, con formato adecuado para verse bien en la vista previa del sitio y utilizando los tecnicismos adecuados:
 
 ---
 
@@ -178,4 +177,3 @@ Licencia: [MIT](LICENSE)
 
 ---
 
-¿Te gustaría que también prepare un `CONTRIBUTING.md`, una licencia tipo MIT o el archivo `train_model.py` base para subir al repo?
