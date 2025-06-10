@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SoCialGuard - Prototipo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        // Script para manejar el modo oscuro antes de que se cargue el DOM
+        // para evitar el parpadeo (flickering)
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark')
+        } else {
+          document.documentElement.classList.remove('dark')
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            /* @apply bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200; */
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        .alert-banner {
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+        }
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+        }
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 28px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2563eb;
+        }
+        input:focus + .slider {
+            box-shadow: 0 0 1px #2563eb;
+        }
+        input:checked + .slider:before {
+            transform: translateX(22px);
+        }
+        /* Animación para la alerta */
+        @keyframes fadeInScale {
+            from {
+                opacity: 0;
+                transform: scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        .animate-fadeInScale {
+            animation: fadeInScale 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4 bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+    <div class="w-full max-w-md bg-white dark:bg-gray-800 rounded-xl shadow-2xl p-6 md:p-8 transition-colors duration-300">
+        <!-- Encabezado -->
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center space-x-3">
+                <svg class="w-10 h-10 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+                </svg>
+                <h1 class="text-2xl font-bold text-gray-800 dark:text-gray-100">SoCialGuard</h1>
+            </div>
+            <div class="flex items-center space-x-4">
+                <button id="theme-toggle" type="button" class="text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-200 dark:focus:ring-gray-700 rounded-lg text-sm p-2.5">
+                    <svg id="theme-toggle-dark-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                    <svg id="theme-toggle-light-icon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm-.707 8.486a1 1 0 011.414 0l.707.707a1 1 0 01-1.414 1.414l-.707-.707a1 1 0 010-1.414zM4 11a1 1 0 100-2H3a1 1 0 100 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+                </button>
+                <label class="switch">
+                    <input type="checkbox" id="extensionToggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <!-- Estado de la Extensión -->
+        <div id="statusMessage" class="mb-6 p-3 rounded-lg text-center text-sm font-medium"></div>
+
+        <!-- Área de Alerta Dinámica -->
+        <div id="alertContainer" class="mb-6"></div>
+        
+        <!-- Simulación de Análisis de Texto -->
+        <div class="space-y-4">
+            <h2 class="text-lg font-semibold text-gray-700 dark:text-gray-300">Analizador de Mensajes (Demo)</h2>
+            <div>
+                <label for="textToAnalyze" class="block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1">Ingresa texto para analizar:</label>
+                <textarea id="textToAnalyze" rows="4" class="w-full p-3 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-500 focus:border-blue-500 dark:focus:border-blue-500 transition-shadow" placeholder="Ej: 'Hola, haz clic en este enlace urgente...'"></textarea>
+            </div>
+            <button id="analyzeButton" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow-md hover:shadow-lg transition-all duration-150 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 focus:ring-blue-500">
+                Analizar Texto
+            </button>
+        </div>
+
+        <!-- Resultados del Análisis -->
+        <div id="analysisResultCard" class="mt-6 p-4 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-900/50 hidden">
+            <h3 class="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">Resultado del Análisis:</h3>
+            <p id="riskLevel" class="text-sm mb-1"></p>
+            <p id="riskDetails" class="text-sm text-gray-600 dark:text-gray-400"></p>
+        </div>
+
+        <!-- Pie de página -->
+        <div class="mt-8 pt-4 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-500 dark:text-gray-500 text-center">
+            <p>SoCialGuard v0.2 (Prototipo)</p>
+            <p>Este es un prototipo conceptual y no ofrece protección real.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const extensionToggle = document.getElementById('extensionToggle');
+            const statusMessage = document.getElementById('statusMessage');
+            const textToAnalyze = document.getElementById('textToAnalyze');
+            const analyzeButton = document.getElementById('analyzeButton');
+            const alertContainer = document.getElementById('alertContainer');
+            const analysisResultCard = document.getElementById('analysisResultCard');
+            const riskLevel = document.getElementById('riskLevel');
+            const riskDetails = document.getElementById('riskDetails');
+            
+            const themeToggleBtn = document.getElementById('theme-toggle');
+            const themeToggleDarkIcon = document.getElementById('theme-toggle-dark-icon');
+            const themeToggleLightIcon = document.getElementById('theme-toggle-light-icon');
+
+            // Función para actualizar el icono del tema
+            function updateThemeIcon() {
+                if (document.documentElement.classList.contains('dark')) {
+                    themeToggleLightIcon.classList.remove('hidden');
+                    themeToggleDarkIcon.classList.add('hidden');
+                } else {
+                    themeToggleLightIcon.classList.add('hidden');
+                    themeToggleDarkIcon.classList.remove('hidden');
+                }
+            }
+
+            // Inicializar estado del botón de tema
+            updateThemeIcon();
+
+            themeToggleBtn.addEventListener('click', () => {
+                // Alternar clase 'dark' en el elemento <html>
+                document.documentElement.classList.toggle('dark');
+                
+                // Actualizar localStorage
+                if (document.documentElement.classList.contains('dark')) {
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    localStorage.setItem('theme', 'light');
+                }
+
+                // Actualizar el icono
+                updateThemeIcon();
+            });
+
+            // Estado inicial de la extensión
+            updateStatus();
+
+            extensionToggle.addEventListener('change', () => {
+                updateStatus();
+                if (!extensionToggle.checked) {
+                    clearAlerts();
+                    analysisResultCard.classList.add('hidden');
+                }
+            });
+
+            analyzeButton.addEventListener('click', () => {
+                if (!extensionToggle.checked) {
+                    displayTemporaryAlert('SoCialGuard está desactivado. Actívalo para analizar mensajes.', 'info');
+                    analysisResultCard.classList.add('hidden');
+                    return;
+                }
+                
+                const text = textToAnalyze.value.trim();
+                if (text) {
+                    // Cambiamos a await porque analyzeTextWithAI será asíncrono
+                    analyzeTextWithAI(text).then(analysis => {
+                        displayAnalysisResult(analysis);
+                        if (analysis.isSuspicious) {
+                            displayAlert(analysis.type, analysis.message, analysis.details);
+                        } else {
+                             displayTemporaryAlert('El texto parece seguro.', 'success', 3000);
+                        }
+                    }).catch(error => {
+                        console.error('Error durante el análisis de IA:', error);
+                        displayTemporaryAlert('Error al analizar el texto con IA.', 'error');
+                    });
+                } else {
+                    displayTemporaryAlert('Por favor, ingresa texto para analizar.', 'warning');
+                    analysisResultCard.classList.add('hidden');
+                }
+            });
+
+            function updateStatus() {
+                if (extensionToggle.checked) {
+                    statusMessage.textContent = 'SoCialGuard está activo y protegiéndote.';
+                    statusMessage.className = 'mb-6 p-3 rounded-lg text-center text-sm font-medium bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300';
+                } else {
+                    statusMessage.textContent = 'SoCialGuard está desactivado.';
+                    statusMessage.className = 'mb-6 p-3 rounded-lg text-center text-sm font-medium bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300';
+                }
+            }
+
+            // Variable global para almacenar el modelo de IA
+            let nlpModel;
+
+            // Función de preprocesamiento de texto (placeholder)
+            // ESTA FUNCIÓN DEBE REPLICAR EL PREPROCESAMIENTO HECHO EN PYTHON EXACTAMENTE.
+            function yourPreprocessingFunction(text) {
+                // Ejemplo simple: convertir a minúsculas y dividir por palabras
+                // En un modelo real, aquí iría tokenización, eliminación de stop words, etc.
+                return text.toLowerCase(); // Esto solo es un ejemplo, necesitarás algo más robusto
+            }
+
+            // Función para analizar texto con el modelo de IA cargado
+            async function analyzeTextWithAI(text) {
+                if (!nlpModel) {
+                    console.warn('Modelo de IA no cargado. Usando análisis simulado (reglas básicas).');
+                    return simulateAIMAnalysis(text); // O podrías lanzar un error
+                }
+
+                try {
+                    // 1. Preprocesar el texto
+                    const preprocessedText = yourPreprocessingFunction(text);
+
+                    // 2. Convertir el texto preprocesado a un tensor adecuado para tu modelo
+                    // Esto dependerá de cómo se haya entrenado tu modelo.
+                    // Para un ejemplo simple con clasificación binaria (ej. 0 o 1),
+                    // podríamos necesitar una representación numérica como un array de números.
+                    // Si tu modelo espera embeddings o secuencias de tokens, aquí tendrías que crearlos.
+                    
+                    // EJEMPLO: Si tu modelo espera un tensor de forma [1, tamaño_vocabulario] (para TF-IDF)
+                    // o [1, longitud_maxima_secuencia] (para embeddings de secuencias)
+                    // Este es un placeholder muy básico, necesitarás adaptar esto a tu modelo real.
+                    const inputTensor = tf.tensor2d([[preprocessedText.length]]); // Esto es solo un placeholder, no funcionará con un modelo real
+                    // Una implementación real podría ser:
+                    // const tokens = yourTokenizer(preprocessedText);
+                    // const paddedSequence = yourPadSequence(tokens, maxLength);
+                    // const inputTensor = tf.tensor2d([paddedSequence], [1, maxLength]);
+
+
+                    // 3. Realizar la predicción
+                    const prediction = await nlpModel.predict(inputTensor).data();
+                    const score = prediction[0]; // Asumiendo una salida de un solo valor para clasificación binaria
+                    const isSuspicious = score > 0.5; // Umbral de decisión
+
+                    // 4. Interpretar el resultado y devolver el formato esperado
+                    if (isSuspicious) {
+                        return {
+                            isSuspicious: true,
+                            type: 'Phishing por IA',
+                            message: `¡Alerta! Posible ataque de ingeniería social detectado por IA.`,
+                            details: `Nivel de confianza: ${(score * 100).toFixed(2)}%`,
+                            score: score
+                        };
+                    } else {
+                        return {
+                            isSuspicious: false,
+                            type: 'Seguro',
+                            message: 'El texto parece seguro (Análisis de IA).',
+                            details: `Nivel de confianza: ${((1 - score) * 100).toFixed(2)}%`,
+                            score: score
+                        };
+                    }
+                } catch (error) {
+                    console.error('Error en analyzeTextWithAI:', error);
+                    // Si hay un error con el modelo de IA, podrías volver al análisis simulado o mostrar un error.
+                    return simulateAIMAnalysis(text); 
+                }
+            }
+
+            function simulateAIMAnalysis(text) {
+                const lowerText = text.toLowerCase();
+                let result = {
+                    isSuspicious: false,
+                    type: 'Seguro',
+                    message: 'El texto parece seguro.',
+                    details: 'No se detectaron patrones de ingeniería social comunes.',
+                    score: 0.1
+                };
+
+                if (lowerText.includes('urgente') && lowerText.includes('contraseña')) {
+                    result = { isSuspicious: true, type: 'Phishing Potencial', message: '¡Alerta! Se detectó una solicitud de contraseña urgente.', details: 'Las solicitudes urgentes de credenciales son una táctica común de phishing.', score: 0.85 };
+                } else if (lowerText.includes('haz clic aquí') && (lowerText.includes('premio') || lowerText.includes('ganaste'))) {
+                    result = { isSuspicious: true, type: 'Scam/Engaño', message: '¡Cuidado! Mensaje con posible promesa falsa.', details: 'Las ofertas de premios inesperados suelen ser engaños.', score: 0.75 };
+                } else if (lowerText.includes('datos bancarios') || lowerText.includes('número de tarjeta')) {
+                     result = { isSuspicious: true, type: 'Solicitud Sospechosa de Datos', message: '¡Atención! Se solicitan datos financieros sensibles.', details: 'Nunca compartas datos bancarios a través de mensajes no solicitados.', score: 0.9 };
+                } else if (lowerText.includes('actualiza tus datos') && lowerText.match(/http[s]?:\/\/[^\s]+/)) {
+                     result = { isSuspicious: true, type: 'Phishing Potencial', message: '¡Alerta! Solicitud de actualización de datos con enlace.', details: 'Verifica siempre la URL y el remitente antes de hacer clic o ingresar datos.', score: 0.8 };
+                }
+                 else if (lowerText.length > 50 && Math.random() < 0.1) {
+                    result = { isSuspicious: true, type: 'Manipulación Emocional (Ejemplo)', message: 'Detectada posible manipulación emocional.', details: 'El mensaje usa un tono que podría intentar influir en tus emociones para una acción rápida.', score: 0.6 };
+                }
+                return result;
+            }
+
+            function displayAnalysisResult(analysis) {
+                riskLevel.textContent = `Nivel de Riesgo: ${analysis.isSuspicious ? 'Alto' : 'Bajo'} (Score: ${analysis.score.toFixed(2)})`;
+                riskDetails.textContent = `Detalles: ${analysis.details}`;
+                
+                riskLevel.className = analysis.isSuspicious ? 'text-sm mb-1 font-semibold text-red-600 dark:text-red-400' : 'text-sm mb-1 font-semibold text-green-600 dark:text-green-400';
+                
+                analysisResultCard.classList.remove('hidden');
+                analysisResultCard.classList.add('animate-fadeInScale');
+            }
+            
+            function displayTemporaryAlert(message, type = 'info', duration = 3000) {
+                clearAlerts();
+                const alertDiv = createAlertElement(type, 'Información', message, '');
+                alertDiv.classList.add('animate-fadeInScale');
+                alertContainer.appendChild(alertDiv);
+
+                setTimeout(() => {
+                    alertDiv.style.opacity = '0';
+                    alertDiv.style.transform = 'translateY(-20px)';
+                    setTimeout(() => {
+                         if (alertContainer.contains(alertDiv)) {
+                            alertContainer.removeChild(alertDiv);
+                         }
+                    }, 500);
+                }, duration);
+            }
+
+            function displayAlert(type, message, details) {
+                clearAlerts();
+                const alertDiv = createAlertElement(
+                    type.toLowerCase().includes('phishing') || type.toLowerCase().includes('sospechosa') ? 'error' : 'warning',
+                    type, message, details
+                );
+                alertDiv.classList.add('animate-fadeInScale');
+                alertContainer.appendChild(alertDiv);
+            }
+
+            function createAlertElement(alertTypeClass, title, message, details) {
+                const alertStyles = {
+                    error: {
+                        style: 'bg-red-100 dark:bg-red-900/50 border-red-400 dark:border-red-600 text-red-700 dark:text-red-300',
+                        icon: `<svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>`
+                    },
+                    warning: {
+                        style: 'bg-yellow-100 dark:bg-yellow-900/50 border-yellow-400 dark:border-yellow-500 text-yellow-700 dark:text-yellow-300',
+                        icon: `<svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M8.257 3.099c.636-1.026 2.078-1.026 2.714 0l4.396 7.098c.636 1.026-.09 2.303-1.357 2.303H5.218c-1.267 0-1.993-1.277-1.357-2.303l4.396-7.098zM10 6a1 1 0 011 1v3a1 1 0 11-2 0V7a1 1 0 011-1zm0 6a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd"></path></svg>`
+                    },
+                    info: {
+                        style: 'bg-blue-100 dark:bg-blue-900/50 border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-300',
+                        icon: `<svg class="w-5 h-5 inline mr-2" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>`
+                    },
+                     success: {
+                        style: 'bg-green-100 dark:bg-green-900/50 border-green-400 dark:border-green-500 text-green-700 dark:text-green-300',
+                        icon: `<svg class="w-5 h-5 inline mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg>`
+                    }
+                };
+
+                const style = alertStyles[alertTypeClass] || alertStyles.info;
+                const alertDiv = document.createElement('div');
+                alertDiv.className = `alert-banner border-l-4 p-4 rounded-md shadow-md ${style.style}`;
+                alertDiv.setAttribute('role', 'alert');
+                
+                let content = `<div class="flex">
+                                <div class="py-1">${style.icon}</div>
+                                <div class="ml-3">
+                                    <p class="font-bold">${title}</p>
+                                    <p class="text-sm">${message}</p>`;
+                if (details) {
+                     content += `<p class="text-xs mt-1">${details}</p>`;
+                }
+                content += `</div></div>`;
+                alertDiv.innerHTML = content;
+                return alertDiv;
+            }
+            
+            function clearAlerts() {
+                alertContainer.innerHTML = '';
+            }
+            // Placeholder para cargar el modelo de TensorFlow.js
+            async function loadModel() {
+                try {
+                    console.log('Cargando modelo...');
+                    // Asume que tu modelo convertido está en una carpeta 'model' en la raíz de tu extensión
+                    // Asegúrate de que la ruta sea correcta a tu archivo model.json
+                    nlpModel = await tf.loadLayersModel('./model/model.json'); // O tf.loadGraphModel
+                    console.log('Modelo cargado exitosamente.');
+                    displayTemporaryAlert('Modelo de IA cargado localmente.', 'success');
+                } catch (error) {
+                    console.error('Error al cargar el modelo:', error);
+                    displayTemporaryAlert('Error al cargar el modelo de IA. La extensión operará con reglas básicas.', 'error');
+                }
+            }
+            loadModel(); // Llamar al cargar la extensión
+        });
+    </script>
+</body>
+</html>
