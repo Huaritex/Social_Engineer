@@ -1,140 +1,201 @@
-import tensorflow as tf
-from tensorflow.keras.preprocessing.text import Tokenizer
-from tensorflow.keras.preprocessing.sequence import pad_sequences
-from sklearn.model_selection import train_test_split
-import numpy as np
 import os
+import pandas as pd
+import json
+import kagglehub
+from sklearn.ensemble import RandomForestClassifier
+import joblib
 
-# --- 1. Generación de Datos de Ejemplo ---
-# En un proyecto real, cargarías un dataset real de phishing y legítimo.
-phishing_examples = [
-    "¡Alerta! Tu cuenta bancaria ha sido comprometida. Haz clic aquí para verificar: http://malicious.link",
-    "Felicidades, has ganado un premio. Reclámalo en este enlace: http://scam.site",
-    "Actualiza tus datos de seguridad ahora: https://fakebank.com/login",
-    "Tu paquete está en espera. Confirma tu envío aquí: http://delivery-scam.net",
-    "Hemos detectado actividad sospechosa en tu cuenta. Inicia sesión inmediatamente: http://login-warning.org",
-    "La factura de tu último pedido está lista. Descárgala desde: http://invoice-scam.co",
-    "Tu contraseña caducará pronto. Cámbiala aquí: https://update-password.info",
-    "Importante: Problema con tu pago. Revisa aquí: http://payment-issue.biz",
-    "Verifica tu identidad para evitar la suspensión de la cuenta: http://verify-account.io",
-    "Oferta limitada: Obtén un 50% de descuento si haces clic en este enlace: http://discount-spam.xyz"
-]
-
-legitimate_examples = [
-    "Hola, ¿cómo estás?",
-    "Reunión programada para mañana a las 10 AM.",
-    "Adjunto el informe trimestral.",
-    "No olvides comprar leche de camino a casa.",
-    "Confirmación de tu reserva para el vuelo XZ789.",
-    "El clima para el fin de semana será soleado.",
-    "Recordatorio: Pago de la suscripción mensual.",
-    "Hemos actualizado nuestros términos y condiciones.",
-    "¿Podrías revisar el documento que te envié?",
-    "Gracias por tu compra. Tu pedido #12345 ha sido enviado."
-]
-
-# Combinar ejemplos y crear etiquetas (1 para phishing, 0 para legítimo)
-texts = phishing_examples + legitimate_examples
-labels = [1] * len(phishing_examples) + [0] * len(legitimate_examples)
-
-# Convertir a arrays de NumPy
-labels = np.array(labels)
-
-# --- 2. Preprocesamiento de Texto ---
-# Parámetros del tokenizador
-vocab_size = 1000 # El tamaño del vocabulario, ajusta según tu dataset real
-embedding_dim = 16 # Dimensión de los embeddings de palabras
-max_length = 50   # Longitud máxima de las secuencias de texto
-trunc_type = 'post'
-padding_type = 'post'
-oov_tok = "<OOV>" # Token para palabras fuera de vocabulario
-
-# Inicializar y ajustar el tokenizador
-tokenizer = Tokenizer(num_words = vocab_size, oov_token=oov_tok)
-tokenizer.fit_on_texts(texts)
-
-# Guardar el word_index para usarlo en JavaScript (muy importante para la inferencia)
-word_index = tokenizer.word_index
-# Puedes guardar esto en un archivo JSON y cargarlo en JS
-# import json
-# with open('word_index.json', 'w') as f:
-#     json.dump(word_index, f)
-
-# Convertir textos a secuencias de números
-sequences = tokenizer.texts_to_sequences(texts)
-
-# Pad (rellenar) las secuencias para que tengan la misma longitud
-padded_sequences = pad_sequences(sequences, maxlen=max_length, padding=padding_type, truncating=trunc_type)
-
-# --- 3. División de Datos (Entrenamiento y Prueba) ---
-X_train, X_test, y_train, y_test = train_test_split(padded_sequences, labels, test_size=0.2, random_state=42)
-
-# --- 4. Construir y Entrenar el Modelo Keras ---
-model = tf.keras.Sequential([
-    tf.keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length),
-    tf.keras.layers.GlobalAveragePooling1D(), # O GlobalMaxPooling1D o Flatten
-    tf.keras.layers.Dense(24, activation='relu'),
-    tf.keras.layers.Dense(1, activation='sigmoid') # Una neurona con sigmoid para clasificación binaria
-])
-
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
-
-model.summary()
-
-num_epochs = 30 # Puedes ajustar esto
-history = model.fit(X_train, y_train, epochs=num_epochs, validation_data=(X_test, y_test), verbose=2)
-
-# --- 5. Exportar el Modelo a Formato TensorFlow.js ---
-# Crear el directorio de salida si no existe
-output_dir = 'social engineer/model' # Aquí es donde tu HTML buscará el modelo
-os.makedirs(output_dir, exist_ok=True)
-
-# Guardar el modelo en formato Keras SavedModel primero
-keras_model_path = os.path.join(output_dir, 'phishing_model.h5')
-model.save(keras_model_path)
-print(f"Modelo Keras guardado en: {keras_model_path}")
-
-# Convertir el modelo a TensorFlow.js
-# Asegúrate de que `tensorflowjs` esté instalado (`pip install tensorflowjs`)
-# El comando se ejecutaría desde la línea de comandos, pero aquí lo haremos programáticamente para ilustrar
 try:
-    print(f"Convirtiendo modelo a TensorFlow.js en: {output_dir}")
-    # Nota: tensorflowjs.converters.save_keras_model es para usar dentro de Python
-    # Para el SavedModel de TF 2.x, el comando es: tensorflowjs_converter --input_format=tf_saved_model --output_format=tfjs_graph_model <saved_model_dir> <output_dir>
-    # Sin embargo, dado que guardamos como .h5, usaremos:
-    # tensorflowjs_converter --input_format=keras --output_format=tfjs_layers_model <keras_model_path> <output_dir>
+    print("Cargando y uniendo ambos datasets de KaggleHub y el archivo local RT_IOT2022.csv...")
+    from kagglehub import KaggleDatasetAdapter
+    # --- Dataset alternativo ---
+    path_alt = kagglehub.dataset_download("michellevp/dataset-phishing-domain-detection-cybersecurity")
+    files_alt = [f for f in os.listdir(path_alt) if f.endswith(('.csv', '.tsv', '.json', '.jsonl', '.xml', '.parquet', '.feather', '.sqlite', '.sqlite3', '.db', '.db3', '.s3db', '.dl3', '.xls', '.xlsx', '.xlsm', '.xlsb', '.odf', '.ods', '.odt'))]
+    if not files_alt:
+        print("No se encontraron archivos de datos soportados en el dataset alternativo.")
+        exit()
+    file_path_alt = os.path.join(path_alt, files_alt[0])
+    if file_path_alt.endswith('.csv'):
+        df_alt = pd.read_csv(file_path_alt)
+    elif file_path_alt.endswith('.tsv'):
+        df_alt = pd.read_csv(file_path_alt, sep='\t')
+    elif file_path_alt.endswith('.json'):
+        df_alt = pd.read_json(file_path_alt)
+    elif file_path_alt.endswith('.xlsx'):
+        df_alt = pd.read_excel(file_path_alt)
+    else:
+        print("Tipo de archivo no soportado automáticamente en alternativo. Cárgalo manualmente.")
+        exit()
+    # Detecta columna objetivo
+    if 'phishing' in df_alt.columns:
+        target_col_alt = 'phishing'
+    elif 'Result' in df_alt.columns:
+        target_col_alt = 'Result'
+    else:
+        print("No se encontró una columna objetivo reconocida en alternativo ('phishing' o 'Result').")
+        print(f"Columnas disponibles: {df_alt.columns.tolist()}")
+        exit()
+    df_alt = df_alt.rename(columns={target_col_alt: 'target'})
+    print(f"Dataset alternativo: {df_alt.shape[0]} filas, {df_alt.shape[1]} columnas")
+    # --- Dataset original ---
+    path_orig = kagglehub.dataset_download("hasibur013/phishing-data")
+    files_orig = [f for f in os.listdir(path_orig) if f.endswith('.csv')]
+    if not files_orig:
+        print("No se encontró ningún archivo CSV en el dataset original.")
+        exit()
+    file_path_orig = os.path.join(path_orig, files_orig[0])
+    df_orig = pd.read_csv(file_path_orig, encoding='latin-1')
+    if 'index' in df_orig.columns:
+        df_orig = df_orig.drop(columns=['index'])
+    if 'Result' in df_orig.columns:
+        target_col_orig = 'Result'
+    elif 'phishing' in df_orig.columns:
+        target_col_orig = 'phishing'
+    else:
+        print("No se encontró una columna objetivo reconocida en original ('Result' o 'phishing').")
+        print(f"Columnas disponibles: {df_orig.columns.tolist()}")
+        exit()
+    df_orig = df_orig.rename(columns={target_col_orig: 'target'})
+    print(f"Dataset original: {df_orig.shape[0]} filas, {df_orig.shape[1]} columnas")
+    # --- Dataset local: buscar cualquier archivo que empiece por RT_IOT y termine en .csv en subcarpetas ---
+    local_files = []
+    for root, dirs, files in os.walk('.'):
+        for f in files:
+            if f.startswith('RT_IOT') and f.endswith('.csv'):
+                local_files.append(os.path.join(root, f))
+    if local_files:
+        for local_file in local_files:
+            print(f"Cargando archivo local: {local_file}")
+            df_local_tmp = pd.read_csv(local_file)
+            # Detecta columna objetivo
+            if 'phishing' in df_local_tmp.columns:
+                target_col_local = 'phishing'
+            elif 'Result' in df_local_tmp.columns:
+                target_col_local = 'Result'
+            elif 'target' in df_local_tmp.columns:
+                target_col_local = 'target'
+            elif 'Attack_type' in df_local_tmp.columns:
+                target_col_local = 'Attack_type'
+                # Convertir Attack_type a binario: 0 para Normal, 1 para otro
+                df_local_tmp['target'] = (df_local_tmp['Attack_type'] != 'Normal').astype(int)
+                df_local_tmp = df_local_tmp.drop(columns=['Attack_type'])
+            else:
+                print(f"No se encontró una columna objetivo reconocida en {local_file} ('phishing', 'Result', 'target' o 'Attack_type').")
+                print(f"Columnas disponibles: {df_local_tmp.columns.tolist()}")
+                continue
+            if target_col_local != 'Attack_type':
+                df_local_tmp = df_local_tmp.rename(columns={target_col_local: 'target'})
+            print(f"Dataset local {local_file}: {df_local_tmp.shape[0]} filas, {df_local_tmp.shape[1]} columnas")
+            if 'df_local' in locals() and df_local is not None:
+                df_local = pd.concat([df_local, df_local_tmp], ignore_index=True)
+            else:
+                df_local = df_local_tmp
+    else:
+        print("No se encontró ningún archivo local RT_IOT*.csv en la carpeta ni subcarpetas. Solo se usarán los datasets de Kaggle.")
+        df_local = None
+    # --- Dataset local: agregar archivo específico 'RT_IOT2022.csv' si existe ---
+    specific_file = 'RT_IOT2022.csv'
+    if os.path.exists(specific_file):
+        print(f"Cargando archivo local específico: {specific_file}")
+        df_specific = pd.read_csv(specific_file)
+        # Detecta columna objetivo
+        if 'phishing' in df_specific.columns:
+            target_col_specific = 'phishing'
+        elif 'Result' in df_specific.columns:
+            target_col_specific = 'Result'
+        elif 'target' in df_specific.columns:
+            target_col_specific = 'target'
+        elif 'Attack_type' in df_specific.columns:
+            target_col_specific = 'Attack_type'
+            df_specific['target'] = (df_specific['Attack_type'] != 'Normal').astype(int)
+            df_specific = df_specific.drop(columns=['Attack_type'])
+        else:
+            print(f"No se encontró una columna objetivo reconocida en {specific_file} ('phishing', 'Result', 'target' o 'Attack_type').")
+            print(f"Columnas disponibles: {df_specific.columns.tolist()}")
+            df_specific = None
+        if df_specific is not None:
+            if target_col_specific != 'Attack_type':
+                df_specific = df_specific.rename(columns={target_col_specific: 'target'})
+            print(f"Dataset local {specific_file}: {df_specific.shape[0]} filas, {df_specific.shape[1]} columnas")
+            if 'df_local' in locals() and df_local is not None:
+                df_local = pd.concat([df_local, df_specific], ignore_index=True)
+            else:
+                df_local = df_specific
+    # --- Unir todos los datasets ---
+    all_columns = sorted(set(df_alt.columns) | set(df_orig.columns) | (set(df_local.columns) if df_local is not None else set()))
+    df_alt = df_alt.reindex(columns=all_columns)
+    df_orig = df_orig.reindex(columns=all_columns)
+    if df_local is not None:
+        df_local = df_local.reindex(columns=all_columns)
+        df_total = pd.concat([df_orig, df_alt, df_local], ignore_index=True)
+    else:
+        df_total = pd.concat([df_orig, df_alt], ignore_index=True)
+    print(f"Dataset combinado: {df_total.shape[0]} filas, {df_total.shape[1]} columnas")
+    print("Columnas disponibles en df_total:", df_total.columns.tolist())
 
-    # Para ejecutarlo directamente desde Python, es más fácil usar un comando de sistema:
-    import subprocess
-    subprocess.run([
-        'tensorflowjs_converter',
-        '--input_format=keras',
-        '--output_format=tfjs_layers_model', # Esto es importante si el modelo es Sequential/Functional Keras
-        keras_model_path,
-        output_dir
-    ], check=True) # check=True lanzará un error si el comando falla
-    print("Modelo convertido a TensorFlow.js exitosamente.")
+    # Define SOLO los features que ya existen en tu DataFrame y que puedes usar para el modelo
+    FEATURES = [
+        'Abnormal_URL ',
+        'Prefix_Suffix ',
+        'SSLfinal_State ',
+        'Shortining_Service ',
+        'having_At_Symbol ',
+        'having_Sub_Domain '
+    ]
+
+    # Filtra el DataFrame solo con los features seleccionados
+    X = df_total[FEATURES]
+    y = df_total['target']
+
+    # División en train/test para evaluación
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, classification_report
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+
+    model = RandomForestClassifier(n_estimators=50, random_state=42, n_jobs=-1)
+    print("Entrenando el modelo Random Forest SOLO con los features seleccionados...")
+    model.fit(X_train, y_train)
+    print("Entrenamiento completado.")
+
+    # Evaluación
+    y_pred = model.predict(X_test)
+    print(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
+    print("Classification Report:")
+    print(classification_report(y_test, y_pred))
+
+    # Guarda el modelo en la ruta que usa el backend
+    os.makedirs('social engineer/model', exist_ok=True)
+    joblib.dump(model, 'social engineer/model/phishing_model_rf.joblib')
+    print("Modelo Random Forest guardado en: social engineer/model/phishing_model_rf.joblib")
+
+    # Guarda la lista de features
+    with open('social engineer/model/features.json', 'w') as f:
+        json.dump(FEATURES, f)
+    print("Características usadas guardadas en: social engineer/model/features.json")
+
+    # Verifica las columnas del modelo entrenado
+    print("\n--- VERIFICACIÓN DEL MODELO GUARDADO ---")
+    loaded_model = joblib.load('social engineer/model/phishing_model_rf.joblib')
+    try:
+        print("n_features_in_:", loaded_model.n_features_in_)
+        print("feature_names_in_:", getattr(loaded_model, 'feature_names_in_', 'No disponible'))
+    except Exception as e:
+        print(f"No se pudo obtener información de features del modelo: {e}")
+
+    # --- Verificación de archivos exportados ---
+    print("\n--- Verificación de archivos exportados ---")
+    for fname in ['model/features.json', 'model/phishing_model_rf.joblib']:
+        if os.path.exists(fname):
+            size = os.path.getsize(fname)
+            print(f"{fname}: {size} bytes")
+            if fname.endswith('.json'):
+                with open(fname, 'r', encoding='utf-8') as f:
+                    try:
+                        data = json.load(f)
+                        print(f"Primeros 200 caracteres: {str(data)[:200]}")
+                    except Exception as e:
+                        print(f"Error al leer {fname} como JSON: {e}")
+        else:
+            print(f"{fname} NO existe")
 except Exception as e:
-    print(f"Error al convertir el modelo a TensorFlow.js: {e}")
-    print("Por favor, asegúrate de que 'tensorflowjs' esté instalado y que el comando 'tensorflowjs_converter' esté en tu PATH.")
-    print(f"También puedes intentar ejecutar el comando de conversión manualmente desde la terminal:")
-    print(f"tensorflowjs_converter --input_format=keras --output_format=tfjs_layers_model \"{keras_model_path}\" \"{output_dir}\"")
-
-print("\n--- PRUEBA BÁSICA DEL MODELO ---")
-# Simula una nueva entrada (similar a lo que el usuario ingresaría)
-test_message_phishing = "Urgent: Your account is locked. Click here to unlock now: http://lock.com"
-test_message_legit = "Hello, how are you today?"
-
-test_sequences_phishing = tokenizer.texts_to_sequences([test_message_phishing])
-test_padded_phishing = pad_sequences(test_sequences_phishing, maxlen=max_length, padding=padding_type, truncating=trunc_type)
-prediction_phishing = model.predict(test_padded_phishing)[0][0]
-print(f"Mensaje de phishing: '{test_message_phishing}'")
-print(f"Predicción (probabilidad de phishing): {prediction_phishing:.4f}")
-print(f"Resultado: {'Phishing' if prediction_phishing > 0.5 else 'Legítimo'}")
-
-test_sequences_legit = tokenizer.texts_to_sequences([test_message_legit])
-test_padded_legit = pad_sequences(test_sequences_legit, maxlen=max_length, padding=padding_type, truncating=trunc_type)
-prediction_legit = model.predict(test_padded_legit)[0][0]
-print(f"Mensaje legítimo: '{test_message_legit}'")
-print(f"Predicción (probabilidad de phishing): {prediction_legit:.4f}")
-print(f"Resultado: {'Phishing' if prediction_legit > 0.5 else 'Legítimo'}") 
+    print(f"Error general en el procesamiento: {e}")
